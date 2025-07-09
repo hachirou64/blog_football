@@ -1,48 +1,84 @@
 <?php
-// Inclure votre fichier de connexion à la base de données
-require_once 'config/database.php'; // Adaptez le chemin si besoin
+// article.php - Page d'affichage d'un article complet
 
-// 1. Récupérer l'ID de l'article depuis l'URL
-$article_id = isset($_GET['id']) ? (int)$_GET['id'] : 0; // Convertir en entier pour la sécurité
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
-if ($article_id > 0) {
-    // 2. Préparer et exécuter la requête pour récupérer l'article
-    $stmt = $pdo->prepare("SELECT * FROM articles WHERE id = :id"); // Utilisez PDO pour plus de sécurité
-    $stmt->execute(['id' => $article_id]);
-    $article = $stmt->fetch(PDO::FETCH_ASSOC);
+require_once 'config/db.php'; // Assurez-vous que le chemin est correct pour article.php
 
-    if ($article) {
-        // L'article a été trouvé, affichez-le
-        ?>
-        <!DOCTYPE html>
-        <html lang="fr">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title><?php echo htmlspecialchars($article['titre']); ?> - Mon Blog de Foot</title>
-            <link rel="stylesheet" href="path/to/bootstrap.min.css">
-            <link rel="stylesheet" href="path/to/style.css">
-        </head>
-        <body>
-            <div class="container">
-                <h1 class="my-4"><?php echo htmlspecialchars($article['titre']); ?></h1>
-                <p class="text-muted">Publié le <?php echo htmlspecialchars($article['date_publication']); ?></p>
-                <img src="<?php echo htmlspecialchars($article['image']); ?>" class="img-fluid mb-4" alt="Image de l'article">
-                <div class="article-content">
-                    <?php echo nl2br(htmlspecialchars($article['contenu_complet'])); ?>
-                    </div>
-                <a href="index.php" class="btn btn-secondary mt-4">Retour aux articles</a>
-            </div>
-            <script src="path/to/bootstrap.bundle.min.js"></script>
-        </body>
-        </html>
-        <?php
-    } else {
-        // Article non trouvé
-        echo "<p>Désolé, l'article demandé n'a pas été trouvé.</p>";
+$article = null;
+$errorMessage = '';
+
+// Vérifier si un ID d'article est passé dans l'URL
+if (isset($_GET['id'])) {
+    $article_id = (int)$_GET['id']; // Convertir en entier pour la sécurité
+
+    try {
+        // Récupérer l'article complet
+        // Assurez-vous que votre table d'articles s'appelle 'posts'
+        $stmt = $pdo->prepare("SELECT p.id, p.title, p.content, p.image_url, p.created_at, u.username AS author_name
+                             FROM posts p
+                             JOIN users u ON p.user_id = u.id
+                             WHERE p.id = :id");
+        $stmt->execute(['id' => $article_id]);
+        $article = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$article) {
+            $errorMessage = "Désolé, l'article demandé n'a pas été trouvé.";
+        }
+
+    } catch (PDOException $e) {
+        $errorMessage = "Erreur lors du chargement de l'article : " . $e->getMessage();
     }
 } else {
-    // ID non valide
-    echo "<p>ID d'article non valide.</p>";
+    $errorMessage = "Aucun ID d'article spécifié.";
 }
+
 ?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $article ? htmlspecialchars($article['title']) : 'Article non trouvé'; ?> - Blog de Football</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="css/style.css"> <style>
+        /* Styles spécifiques à la page d'article si besoin */
+        .article-full-content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <?php include 'includes/navbar.php'; ?>
+
+    <main class="container my-5">
+        <?php if (!empty($errorMessage)): ?>
+            <div class="alert alert-danger" role="alert">
+                <?php echo htmlspecialchars($errorMessage); ?>
+            </div>
+        <?php elseif ($article): ?>
+            <article>
+                <h1 class="mb-4"><?php echo htmlspecialchars($article['title']); ?></h1>
+                <p class="text-muted">Par <?php echo htmlspecialchars($article['author_name']); ?> le <?php echo date('d/m/Y', strtotime($article['created_at'])); ?></p>
+                <?php if ($article['image_url']): ?>
+                    <img src="<?php echo htmlspecialchars($article['image_url']); ?>" class="img-fluid mb-4" alt="<?php echo htmlspecialchars($article['title']); ?>">
+                <?php endif; ?>
+                <div class="article-full-content mb-4">
+                    <?php echo nl2br(htmlspecialchars($article['content'])); ?>
+                </div>
+                <a href="index.php" class="btn btn-secondary">Retour aux articles</a>
+            </article>
+        <?php endif; ?>
+    </main>
+
+    <?php include 'includes/footer.php'; ?>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>
